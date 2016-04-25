@@ -1,0 +1,1 @@
+This is a quick test client library for the excel server
