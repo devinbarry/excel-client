@@ -48,3 +48,6 @@ build-iPhoneSimulator/
 .rvmrc
 
 # Created by .ignore support plugin (hsz.mobi)
+
+# Ignore RubyMine files
+.idea/
