@@ -15,8 +15,10 @@ class ExcelAPIClient
   # Setup the API client
   def initialize(ip, port="5000")
     @host = "#{ip}:#{port}"
-    @simple_cell_data = self.create_simple_cell_data %w(Apple Bananna Orange Pear)
+    @simple_cell_data = self.simple_cell_data %w(Apple Bananna Orange Pear)
     @client = HTTP.headers(:accept => "*/*", "Content-Type" => "application/json", "User-Agent" => "curl/7.43.0")
+    @sheet_number = 1
+    @row_number = 1
   end
 
   def create_work_book
@@ -27,25 +29,47 @@ class ExcelAPIClient
   end
 
   def create_work_sheet(title)
-    json_data = { :work_book_uuid => @work_book_uuid, :title => title }
-    body = @client.post("http://#{@host}/worksheet", :json => json_data).body
-    response = JSON.parse(body)
-    @work_sheet_uuid = response["uuid"]
+    json_data = { :work_book_uuid => @work_book_uuid, :sheet_number => @sheet_number, :title => title }
+    r = @client.post("http://#{@host}/worksheet", :json => json_data)
+
+    if r.code == 201
+      # Increment sheet number on successful creation
+      @sheet_number += 1
+      puts "Created work sheet"
+      response = JSON.parse(r.body)
+      @work_sheet_uuid = response["uuid"]
+    else
+      puts r.body
+      raise "Error response: #{r.code}"
+    end
   end
 
-  def create_row(row_data=[])
-    row_data = row_data.empty? ? ["Cell Info 1", "Cell Info 2", "Cell Info 3"] : row_data
-    # row_data ||= ["Cell Info 1", "Cell Info 2", "Cell Info 3"]
-    cell_data = self.create_cell_data row_data
-    json_data = { :work_sheet_uuid => @work_sheet_uuid, :cells => cell_data }
+  def add_row(cell_data=nil)
+    cell_data ||= @simple_cell_data
+    json_data = { :work_sheet_uuid => @work_sheet_uuid, :row_number => @row_number, :cells => cell_data }
     r = @client.post("http://#{@host}/row", :json => json_data)
+
+    if r.code == 201
+      # Increment row number on successful creation
+      @row_number += 1
+      puts "Created row"
+    else
+      puts r.body
+      raise "Error response: #{r.code}"
+    end
+
     # puts r.content_type
-    body = r.body
-    # response = JSON.parse(body)
+    # response = JSON.parse(r.body)
+  end
+
+  # Create default styled row data from an array of strings
+  def default_row(row_data=[])
+    row_data = row_data.empty? ? ["Cell Info 1", "Cell Info 2", "Cell Info 3"] : row_data
+    self.styled_cell_data row_data
   end
 
   # Return an array of hashes
-  def create_simple_cell_data(data_a)
+  def simple_cell_data(data_a)
     cell_array = []
     data_a.each do |cell_data|
       cell_array.push({ :cell_data => cell_data })
@@ -54,7 +78,7 @@ class ExcelAPIClient
   end
 
   # Return an array of hashes
-  def create_cell_data(data_a)
+  def styled_cell_data(data_a)
     cell_array = []
     data_a.each do |cell_data|
       cell_array.push({ :cell_data => cell_data, :style =>  self.create_style_data })
@@ -80,8 +104,8 @@ if __FILE__ == $0
   client.create_work_book
   puts client.work_book_uuid
   client.create_work_sheet("First Worksheet")
-  puts client.work_sheet_uuid
-  client.create_row ["Apple", "Bananna", "Orange", "Pear", "Mandarin and Grapes"]
-  client.create_row
-  client.create_row ["Water Melon", "Fruit", "Orange", "Pear", "Mandarin"]
+  client.add_row client.default_row(["Apple", "Bananna", "Orange", "Pear", "Mandarin and Grapes"])
+  client.add_row
+  client.add_row
+  client.add_row client.default_row ["Water Melon", "Fruit", "Orange", "Pear", "Mandarin"]
 end
